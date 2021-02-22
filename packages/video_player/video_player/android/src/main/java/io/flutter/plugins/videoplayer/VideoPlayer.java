@@ -1,7 +1,6 @@
 package io.flutter.plugins.videoplayer;
 
 import android.content.Context;
-import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Build;
 import android.view.Surface;
@@ -74,7 +73,6 @@ final class VideoPlayer {
       long maxCacheSize,
       long maxCacheFileSize,
       boolean useCache,
-      SQLiteDatabase sqLiteDatabase,
       VideoPlayerOptions options) {
     this.eventChannel = eventChannel;
     this.textureEntry = textureEntry;
@@ -95,8 +93,7 @@ final class VideoPlayer {
               true);
       if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
         dataSourceFactory =
-            new CacheDataSourceFactory(context, maxCacheSize, maxCacheFileSize, dataSourceFactory,
-                sqLiteDatabase);
+            new CacheDataSourceFactory(context, maxCacheSize, maxCacheFileSize, dataSourceFactory);
       }
     } else {
       dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
@@ -144,13 +141,13 @@ final class VideoPlayer {
     switch (type) {
       case C.TYPE_SS:
         return new SsMediaSource.Factory(
-                new DefaultSsChunkSource.Factory(mediaDataSourceFactory),
-                new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
+            new DefaultSsChunkSource.Factory(mediaDataSourceFactory),
+            new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
             .createMediaSource(MediaItem.fromUri(uri));
       case C.TYPE_DASH:
         return new DashMediaSource.Factory(
-                new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
-                new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
+            new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
+            new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
             .createMediaSource(MediaItem.fromUri(uri));
       case C.TYPE_HLS:
         return new HlsMediaSource.Factory(mediaDataSourceFactory)
@@ -158,10 +155,9 @@ final class VideoPlayer {
       case C.TYPE_OTHER:
         return new ProgressiveMediaSource.Factory(mediaDataSourceFactory)
             .createMediaSource(MediaItem.fromUri(uri));
-      default:
-        {
-          throw new IllegalStateException("Unsupported type: " + type);
-        }
+      default: {
+        throw new IllegalStateException("Unsupported type: " + type);
+      }
     }
   }
 
@@ -314,8 +310,7 @@ final class VideoPlayer {
         Context context,
         long maxCacheSize,
         long maxFileSize,
-        DataSource.Factory upstreamDataSource,
-        SQLiteDatabase sqLiteDatabase) {
+        DataSource.Factory upstreamDataSource) {
       super();
       this.context = context;
       this.maxCacheSize = maxCacheSize;
@@ -323,17 +318,7 @@ final class VideoPlayer {
       DefaultBandwidthMeter bandwidthMeter = new DefaultBandwidthMeter.Builder(context).build();
       defaultDatasourceFactory =
           new DefaultDataSourceFactory(this.context, bandwidthMeter, upstreamDataSource);
-      databaseProvider = new DatabaseProvider() {
-        @Override
-        public SQLiteDatabase getWritableDatabase() {
-          return sqLiteDatabase;
-        }
-
-        @Override
-        public SQLiteDatabase getReadableDatabase() {
-          return sqLiteDatabase;
-        }
-      };
+      databaseProvider = null;
     }
 
     @Override
@@ -342,7 +327,8 @@ final class VideoPlayer {
 
       if (downloadCache == null) {
         downloadCache =
-            new SimpleCache(new File(context.getCacheDir(), "video"), evictor, databaseProvider);
+            new SimpleCache(new File(context.getCacheDir(), "video"), evictor, databaseProvider,
+                null, false, true);
       }
 
       return new CacheDataSource(

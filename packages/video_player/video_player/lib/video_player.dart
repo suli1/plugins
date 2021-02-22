@@ -11,10 +11,11 @@ import 'package:flutter/services.dart';
 import 'package:meta/meta.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
+import 'src/closed_caption_file.dart';
+
 export 'package:video_player_platform_interface/video_player_platform_interface.dart'
     show DurationRange, DataSourceType, VideoFormat, VideoPlayerOptions;
 
-import 'src/closed_caption_file.dart';
 export 'src/closed_caption_file.dart';
 
 /// The duration, current position, buffering state, error state and settings
@@ -184,12 +185,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// **Android only**: The [formatHint] option allows the caller to override
   /// the video format detection code.
   VideoPlayerController.network(
-      this.dataSource, {
-        this.formatHint,
-        this.closedCaptionFile,
-        this.videoPlayerOptions,
-        bool useCache = false,
-      }): assert(useCache != null),
+    this.dataSource, {
+    this.formatHint,
+    this.closedCaptionFile,
+    this.videoPlayerOptions,
+    bool useCache = false,
+  })  : assert(useCache != null),
         dataSourceType = DataSourceType.network,
         package = null,
         useCache = useCache,
@@ -249,6 +250,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   bool _isDisposed = false;
   static Completer<void> _pluginInitializingCompleter;
   Completer<void> _creatingCompleter;
+  Completer<void> _initializingCompleter;
   StreamSubscription<dynamic> _eventSubscription;
   _VideoAppLifeCycleObserver _lifeCycleObserver;
 
@@ -315,9 +317,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           .setMixWithOthers(videoPlayerOptions.mixWithOthers);
     }
 
-    _textureId = await VideoPlayerPlatform.instance.create(dataSourceDescription);
+    _textureId =
+        await VideoPlayerPlatform.instance.create(dataSourceDescription);
     _creatingCompleter.complete(null);
-    final Completer<void> initializingCompleter = Completer<void>();
+    _initializingCompleter = Completer<void>();
 
     void eventListener(VideoEvent event) {
       if (_isDisposed) {
@@ -330,7 +333,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
             duration: event.duration,
             size: event.size,
           );
-          initializingCompleter.complete(null);
+          _initializingCompleter.complete(null);
           _applyLooping();
           _applyVolume();
           _applyPlayPause();
@@ -364,15 +367,15 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       final PlatformException e = obj;
       value = VideoPlayerValue.erroneous(e.message);
       _timer?.cancel();
-      if (!initializingCompleter.isCompleted) {
-        initializingCompleter.completeError(obj);
+      if (!_initializingCompleter.isCompleted) {
+        _initializingCompleter.completeError(obj);
       }
     }
 
     _eventSubscription = VideoPlayerPlatform.instance
         .videoEventsFor(_textureId)
         .listen(eventListener, onError: errorListener);
-    return initializingCompleter.future;
+    return _initializingCompleter.future;
   }
 
   Future<void> _ensureVideoPluginInitialized() async {
@@ -397,6 +400,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         _timer?.cancel();
         await _eventSubscription?.cancel();
         await VideoPlayerPlatform.instance.dispose(_textureId);
+      }
+      if (_initializingCompleter != null &&
+          !_initializingCompleter.isCompleted) {
+        _initializingCompleter.completeError(Exception('VideoPlayer is disposed'));
       }
       _lifeCycleObserver.dispose();
     }

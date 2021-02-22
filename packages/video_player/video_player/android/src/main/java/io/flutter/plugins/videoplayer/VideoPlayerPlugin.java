@@ -5,7 +5,6 @@
 package io.flutter.plugins.videoplayer;
 
 import android.content.Context;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Build;
 import android.util.LongSparseArray;
 import io.flutter.FlutterInjector;
@@ -22,13 +21,9 @@ import io.flutter.plugins.videoplayer.Messages.TextureMessage;
 import io.flutter.plugins.videoplayer.Messages.VideoPlayerApi;
 import io.flutter.plugins.videoplayer.Messages.VolumeMessage;
 import io.flutter.view.TextureRegistry;
-import java.io.File;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import javax.net.ssl.HttpsURLConnection;
-
-import static android.database.sqlite.SQLiteDatabase.CREATE_IF_NECESSARY;
-import static android.database.sqlite.SQLiteDatabase.OPEN_READWRITE;
 
 /** Android platform implementation of the VideoPlayerPlugin. */
 public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
@@ -39,10 +34,10 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
 
   private long maxCacheSize;
   private long maxCacheFileSize;
-  private SQLiteDatabase sqLiteDatabase;
 
   /** Register this with the v2 embedding for the plugin to respond to lifecycle callbacks. */
-  public VideoPlayerPlugin() {}
+  public VideoPlayerPlugin() {
+  }
 
   @SuppressWarnings("deprecation")
   private VideoPlayerPlugin(io.flutter.plugin.common.PluginRegistry.Registrar registrar) {
@@ -92,9 +87,6 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
             injector.flutterLoader()::getLookupKeyForAsset,
             binding.getTextureRegistry());
     flutterState.startListening(this, binding.getBinaryMessenger());
-
-    String path = binding.getApplicationContext().getCacheDir().getPath() + File.separator + "video_player.db";
-    sqLiteDatabase = SQLiteDatabase.openDatabase(path, null, OPEN_READWRITE | CREATE_IF_NECESSARY);
   }
 
   @Override
@@ -105,10 +97,6 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
     flutterState.stopListening(binding.getBinaryMessenger());
     flutterState = null;
     disposeAllPlayers();
-
-    if (sqLiteDatabase != null) {
-      sqLiteDatabase.close();
-    }
   }
 
   private void disposeAllPlayers() {
@@ -160,7 +148,6 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
               maxCacheSize,
               maxCacheFileSize,
               false,
-              sqLiteDatabase,
               options);
     } else {
       player =
@@ -173,7 +160,6 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
               maxCacheSize,
               maxCacheFileSize,
               arg.getUseCache(),
-              sqLiteDatabase,
               options);
     }
     videoPlayers.put(handle.id(), player);
